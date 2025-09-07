@@ -1,9 +1,7 @@
 include README.md
 include LICENSE
-recursive-include lms-enrollment-summary-api/enrollment_summary *.py
-recursive-include lms-enrollment-summary-api/enrollment_summary *.html
-recursive-include lms-enrollment-summary-api/enrollment_summary *.js
-recursive-include lms-enrollment-summary-api/enrollment_summary *.css
-recursive-exclude lms-enrollment-summary-api/tests *
-recursive-exclude lms-enrollment-summary-api/enrollment_summary *.pyc
-recursive-exclude lms-enrollment-summary-api/enrollment_summary *.pyo
+include requirements.txt
+recursive-include enrollment_summary *.py
+recursive-include enrollment_summary/tests *.py
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
