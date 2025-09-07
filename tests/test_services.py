@@ -4,7 +4,7 @@ Tests for the Enrollment Summary API serializers.
 
 from django.test import TestCase
 from datetime import datetime, timezone
-from enrollment_summary_api.serializers import EnrollmentSummarySerializer
+from enrollment_summary.serializers import EnrollmentSummarySerializer
 
 
 class EnrollmentSummarySerializerTestCase(TestCase):

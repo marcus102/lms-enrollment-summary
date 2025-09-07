@@ -1,145 +1,115 @@
 """
-Tests for the Enrollment Summary API services.
+Tests for LMS Enrollment Summary serializers
 """
-
-from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
-from common.djangoapps.student.models import CourseEnrollment
-from opaque_keys.edx.keys import CourseKey
+from unittest.mock import patch, MagicMock
+from datetime import datetime
 
-from enrollment_summary_api.services import EnrollmentSummaryService
+from student.models import CourseEnrollment
+from opaque_keys.edx.keys import CourseKey
+from lms_enrollment_summary.serializers import EnrollmentSummarySerializer
 
 User = get_user_model()
 
 
-class EnrollmentSummaryServiceTestCase(TestCase):
-    """Test cases for the EnrollmentSummaryService."""
+class EnrollmentSummarySerializerTestCase(TestCase):
+    """
+    Test cases for EnrollmentSummarySerializer
+    """
     
     def setUp(self):
-        """Set up test data."""
-        cache.clear()
-        
-        self.service = EnrollmentSummaryService()
-        
-        # Create test user
-        self.test_user = User.objects.create_user(
+        """
+        Set up test data
+        """
+        self.user = User.objects.create_user(
             username='testuser',
             email='test@example.com',
-            password='testpass123'
+            password='testpass'
         )
         
-        # Create test course keys
-        self.course_key = CourseKey.from_string('course-v1:TestX+CS101+2023')
+        self.course_key = CourseKey.from_string('course-v1:TestOrg+CS101+2023_Fall')
         
-        # Create test enrollment
         self.enrollment = CourseEnrollment.objects.create(
-            user=self.test_user,
+            user=self.user,
             course_id=self.course_key,
+            mode='audit',
             is_active=True
         )
     
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService._get_course_overviews')
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService._get_graded_subsections_count')
-    def test_get_enrollment_summaries_basic(self, mock_graded_count, mock_overviews):
-        """Test basic enrollment summary retrieval."""
-        # Mock dependencies
-        mock_overviews.return_value = {
-            str(self.course_key): {
-                'display_name': 'Test Course',
-                'start': None,
-                'end': None,
-            }
+    @patch('lms_enrollment_summary.serializers.CourseOverview.objects.get')
+    def test_serialization_with_course_overview(self, mock_course_overview):
+        """
+        Test serialization when CourseOverview exists
+        """
+        # Mock CourseOverview
+        mock_overview = MagicMock()
+        mock_overview.id = self.course_key
+        mock_overview.display_name = 'Test Course'
+        mock_course_overview.return_value = mock_overview
+        
+        serializer = EnrollmentSummarySerializer()
+        
+        with patch.object(serializer, '_get_graded_subsections_count', return_value=5):
+            result = serializer.to_representation(self.enrollment)
+        
+        expected_data = {
+            'user_id': self.user.id,
+            'username': self.user.username,
+            'course_key': str(self.course_key),
+            'course_title': 'Test Course',
+            'enrollment_status': 'audit',
+            'is_active': True,
+            'enrollment_date': self.enrollment.created,
+            'graded_subsections_count': 5,
         }
-        mock_graded_count.return_value = 5
         
-        summaries = self.service.get_enrollment_summaries()
-        
-        self.assertEqual(len(summaries), 1)
-        summary = summaries[0]
-        
-        self.assertEqual(summary['user_id'], self.test_user.id)
-        self.assertEqual(summary['username'], self.test_user.username)
-        self.assertEqual(summary['course_key'], str(self.course_key))
-        self.assertEqual(summary['course_title'], 'Test Course')
-        self.assertEqual(summary['enrollment_status'], 'active')
-        self.assertTrue(summary['is_active'])
-        self.assertEqual(summary['graded_subsections_count'], 5)
+        self.assertEqual(result, expected_data)
     
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService._get_course_overviews')
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService._get_graded_subsections_count')
-    def test_get_enrollment_summaries_with_user_filter(self, mock_graded_count, mock_overviews):
-        """Test enrollment summary retrieval with user filter."""
-        # Create another user and enrollment
-        other_user = User.objects.create_user(
-            username='otheruser',
-            email='other@example.com',
-            password='testpass123'
-        )
-        CourseEnrollment.objects.create(
-            user=other_user,
-            course_id=self.course_key,
-            is_active=True
-        )
+    @patch('lms_enrollment_summary.serializers.CourseOverview.objects.get')
+    def test_serialization_without_course_overview(self, mock_course_overview):
+        """
+        Test serialization when CourseOverview doesn't exist
+        """
+        from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
+        mock_course_overview.side_effect = CourseOverview.DoesNotExist()
         
-        mock_overviews.return_value = {str(self.course_key): {'display_name': 'Test Course', 'start': None, 'end': None}}
-        mock_graded_count.return_value = 0
+        serializer = EnrollmentSummarySerializer()
+        result = serializer.to_representation(self.enrollment)
         
-        # Filter by specific user
-        summaries = self.service.get_enrollment_summaries(user_id=self.test_user.id)
-        
-        self.assertEqual(len(summaries), 1)
-        self.assertEqual(summaries[0]['user_id'], self.test_user.id)
+        self.assertEqual(result['course_title'], 'Unknown Course')
+        self.assertEqual(result['graded_subsections_count'], 0)
     
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService._get_course_overviews')
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService._get_graded_subsections_count')
-    def test_get_enrollment_summaries_with_active_filter(self, mock_graded_count, mock_overviews):
-        """Test enrollment summary retrieval with active filter."""
-        # Create inactive enrollment
-        CourseEnrollment.objects.create(
-            user=self.test_user,
-            course_id=CourseKey.from_string('course-v1:TestX+CS102+2023'),
-            is_active=False
-        )
+    def test_graded_subsections_count_calculation(self):
+        """
+        Test graded subsections count calculation
+        """
+        serializer = EnrollmentSummarySerializer()
         
-        mock_overviews.return_value = {}
-        mock_graded_count.return_value = 0
+        # Mock course overview
+        mock_overview = MagicMock()
+        mock_overview.id = self.course_key
         
-        # Filter by active enrollments only
-        summaries = self.service.get_enrollment_summaries(active=True)
+        # Test with modulestore available
+        with patch('lms_enrollment_summary.serializers.modulestore') as mock_modulestore:
+            # Mock course structure
+            mock_course = MagicMock()
+            mock_chapter = MagicMock()
+            mock_graded_section = MagicMock()
+            mock_graded_section.graded = True
+            mock_ungraded_section = MagicMock()
+            mock_ungraded_section.graded = False
+            
+            mock_chapter.get_children.return_value = [mock_graded_section, mock_ungraded_section]
+            mock_course.get_children.return_value = [mock_chapter]
+            
+            mock_modulestore.return_value.get_course.return_value = mock_course
+            
+            count = serializer._get_graded_subsections_count(mock_overview)
+            self.assertEqual(count, 1)
         
-        self.assertEqual(len(summaries), 1)
-        self.assertTrue(summaries[0]['is_active'])
-        
-        # Filter by inactive enrollments only
-        summaries = self.service.get_enrollment_summaries(active=False)
-        
-        self.assertEqual(len(summaries), 1)
-        self.assertFalse(summaries[0]['is_active'])
-    
-    def test_build_cache_key(self):
-        """Test cache key building."""
-        # Test basic cache key
-        key = self.service._build_cache_key(None, None, None)
-        self.assertEqual(key, 'enrollment_summaries')
-        
-        # Test with user_id
-        key = self.service._build_cache_key(123, None, None)
-        self.assertEqual(key, 'enrollment_summaries:user_123')
-        
-        # Test with all parameters
-        key = self.service._build_cache_key(123, True, 'course-v1:TestX+CS101+2023')
-        expected = 'enrollment_summaries:user_123:active_True:course_course-v1_TestX_CS101_2023'
-        self.assertEqual(key, expected)
-    
-    def test_get_enrollment_status(self):
-        """Test enrollment status determination."""
-        # Test active enrollment
-        status = self.service._get_enrollment_status(self.enrollment)
-        self.assertEqual(status, 'active')
-        
-        # Test inactive enrollment
-        self.enrollment.is_active = False
-        status = self.service._get_enrollment_status(self.enrollment)
-        self.assertEqual(status, 'inactive')
+        # Test with modulestore exception
+        with patch('lms_enrollment_summary.serializers.modulestore') as mock_modulestore:
+            mock_modulestore.return_value.get_course.side_effect = Exception("Modulestore error")
+            count = serializer._get_graded_subsections_count(mock_overview)
+            self.assertEqual(count, 0)

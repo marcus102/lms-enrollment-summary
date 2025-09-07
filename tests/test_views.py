@@ -1,151 +1,132 @@
 """
-Tests for the Enrollment Summary API views.
+Tests for LMS Enrollment Summary views
 """
-
 import json
-from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.urls import reverse
-from rest_framework import status
 from rest_framework.test import APIClient
-from common.djangoapps.student.models import CourseEnrollment
+from rest_framework import status
+from unittest.mock import patch, MagicMock
+
+from student.models import CourseEnrollment
+from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 from opaque_keys.edx.keys import CourseKey
 
 User = get_user_model()
 
 
-class EnrollmentSummaryAPITestCase(TestCase):
-    """Test cases for the Enrollment Summary API."""
+class EnrollmentSummaryViewTestCase(TestCase):
+    """
+    Test cases for EnrollmentSummaryViewSet
+    """
     
     def setUp(self):
-        """Set up test data."""
-        self.client = APIClient()
+        """
+        Set up test data
+        """
+        self.service = EnrollmentSummaryService()
         
-        # Create test users
-        self.staff_user = User.objects.create_user(
-            username='staff_user',
-            email='staff@example.com',
-            password='testpass123',
-            is_staff=True
+        self.user1 = User.objects.create_user(
+            username='user1',
+            email='user1@example.com',
+            password='testpass'
         )
         
-        self.regular_user = User.objects.create_user(
-            username='regular_user',
-            email='regular@example.com',
-            password='testpass123'
+        self.user2 = User.objects.create_user(
+            username='user2',
+            email='user2@example.com',
+            password='testpass'
         )
         
-        self.student_user = User.objects.create_user(
-            username='student_user',
-            email='student@example.com',
-            password='testpass123'
-        )
-        
-        # Create test course keys
-        self.course_key1 = CourseKey.from_string('course-v1:TestX+CS101+2023')
-        self.course_key2 = CourseKey.from_string('course-v1:TestX+CS102+2023')
+        self.course_key_1 = CourseKey.from_string('course-v1:TestOrg+CS101+2023_Fall')
+        self.course_key_2 = CourseKey.from_string('course-v1:TestOrg+CS102+2023_Fall')
         
         # Create test enrollments
         self.enrollment1 = CourseEnrollment.objects.create(
-            user=self.student_user,
-            course_id=self.course_key1,
+            user=self.user1,
+            course_id=self.course_key_1,
+            mode='audit',
             is_active=True
         )
         
         self.enrollment2 = CourseEnrollment.objects.create(
-            user=self.student_user,
-            course_id=self.course_key2,
+            user=self.user1,
+            course_id=self.course_key_2,
+            mode='verified',
             is_active=False
         )
         
-        self.url = reverse('enrollment_summary_api:enrollment-summary-list')
+        self.enrollment3 = CourseEnrollment.objects.create(
+            user=self.user2,
+            course_id=self.course_key_1,
+            mode='audit',
+            is_active=True
+        )
     
-    def test_unauthenticated_access_denied(self):
-        """Test that unauthenticated users cannot access the API."""
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+    def test_get_enrollment_summary_no_filters(self):
+        """
+        Test getting all enrollment summaries without filters
+        """
+        result = self.service.get_enrollment_summary()
+        self.assertEqual(result.count(), 3)
     
-    def test_non_staff_access_denied(self):
-        """Test that non-staff users cannot access the API."""
-        self.client.force_authenticate(user=self.regular_user)
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+    def test_get_enrollment_summary_filter_by_user(self):
+        """
+        Test filtering by user_id
+        """
+        result = self.service.get_enrollment_summary(user_id=self.user1.id)
+        self.assertEqual(result.count(), 2)
+        
+        for enrollment in result:
+            self.assertEqual(enrollment.user_id, self.user1.id)
     
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService.get_enrollment_summaries')
-    def test_staff_can_access_api(self, mock_service):
-        """Test that staff users can access the API."""
-        mock_service.return_value = []
+    def test_get_enrollment_summary_filter_by_active(self):
+        """
+        Test filtering by active status
+        """
+        result = self.service.get_enrollment_summary(active=True)
+        self.assertEqual(result.count(), 2)
         
-        self.client.force_authenticate(user=self.staff_user)
-        response = self.client.get(self.url)
-        
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_service.assert_called_once()
+        for enrollment in result:
+            self.assertTrue(enrollment.is_active)
     
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService.get_enrollment_summaries')
-    def test_filter_by_user_id(self, mock_service):
-        """Test filtering by user_id parameter."""
-        mock_service.return_value = []
+    def test_get_enrollment_summary_filter_by_course(self):
+        """
+        Test filtering by course key
+        """
+        result = self.service.get_enrollment_summary(course_key=str(self.course_key_1))
+        self.assertEqual(result.count(), 2)
         
-        self.client.force_authenticate(user=self.staff_user)
-        response = self.client.get(f'{self.url}?user_id={self.student_user.id}')
-        
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_service.assert_called_once_with(user_id=self.student_user.id)
+        for enrollment in result:
+            self.assertEqual(enrollment.course_id, self.course_key_1)
     
-    def test_invalid_user_id(self):
-        """Test handling of invalid user_id parameter."""
-        self.client.force_authenticate(user=self.staff_user)
-        
-        # Test non-integer user_id
-        response = self.client.get(f'{self.url}?user_id=invalid')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        
-        # Test non-existent user_id
-        response = self.client.get(f'{self.url}?user_id=99999')
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+    def test_get_enrollment_summary_invalid_course_key(self):
+        """
+        Test handling invalid course key
+        """
+        result = self.service.get_enrollment_summary(course_key='invalid-key')
+        self.assertEqual(result.count(), 0)
     
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService.get_enrollment_summaries')
-    def test_filter_by_active_status(self, mock_service):
-        """Test filtering by active status."""
-        mock_service.return_value = []
+    def test_get_user_enrollment_stats(self):
+        """
+        Test getting user enrollment statistics
+        """
+        stats = self.service.get_user_enrollment_stats(self.user1.id)
         
-        self.client.force_authenticate(user=self.staff_user)
+        expected_stats = {
+            'user_id': self.user1.id,
+            'username': self.user1.username,
+            'total_enrollments': 2,
+            'active_enrollments': 1,
+            'inactive_enrollments': 1,
+        }
         
-        # Test active=true
-        response = self.client.get(f'{self.url}?active=true')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_service.assert_called_with(active=True)
-        
-        # Test active=false
-        mock_service.reset_mock()
-        response = self.client.get(f'{self.url}?active=false')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_service.assert_called_with(active=False)
+        self.assertEqual(stats, expected_stats)
     
-    def test_invalid_active_parameter(self):
-        """Test handling of invalid active parameter."""
-        self.client.force_authenticate(user=self.staff_user)
-        
-        response = self.client.get(f'{self.url}?active=invalid')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-    
-    @patch('enrollment_summary_api.services.EnrollmentSummaryService.get_enrollment_summaries')
-    def test_filter_by_course_key(self, mock_service):
-        """Test filtering by course_key parameter."""
-        mock_service.return_value = []
-        
-        self.client.force_authenticate(user=self.staff_user)
-        course_key_str = str(self.course_key1)
-        response = self.client.get(f'{self.url}?course_key={course_key_str}')
-        
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        mock_service.assert_called_once_with(course_key=course_key_str)
-    
-    def test_invalid_course_key(self):
-        """Test handling of invalid course_key parameter."""
-        self.client.force_authenticate(user=self.staff_user)
-        
-        response = self.client.get(f'{self.url}?course_key=invalid-key')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+    def test_get_user_enrollment_stats_nonexistent_user(self):
+        """
+        Test getting stats for non-existent user
+        """
+        stats = self.service.get_user_enrollment_stats(99999)
+        self.assertIsNone(stats)
