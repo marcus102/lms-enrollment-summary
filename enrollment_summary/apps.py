@@ -1,31 +1,31 @@
 """
-Django app configuration for LMS Enrollment Summary
+Django app configuration for the Enrollment Summary API plugin
 """
+
 from django.apps import AppConfig
-from openedx.core.djangoapps.plugins.constants import ProjectType, PluginSettings, PluginURLs
 
 
-class LMSEnrollmentSummaryConfig(AppConfig):
+class EnrollmentSummaryAPIConfig(AppConfig):
     """
-    App configuration for LMS Enrollment Summary plugin
+    Configuration for the Enrollment Summary API Django application.
     """
-    default_auto_field = 'django.db.models.BigAutoField'
-    name = 'lms_enrollment_summary'
-    verbose_name = 'LMS Enrollment Summary API'
+
+    name = "enrollment_summary_api"
+    verbose_name = "LMS Enrollment Summary API"
+    default_auto_field = "django.db.models.BigAutoField"
 
     plugin_app = {
-        PluginURLs.CONFIG: {
-            ProjectType.LMS: {
-                PluginURLs.NAMESPACE: 'lms_enrollment_summary',
-                PluginURLs.REGEX: r'^api/enrollments/',
-                PluginURLs.RELATIVE_PATH: 'urls',
+        "url_config": {
+            "lms.djangoapp": {
+                "namespace": "enrollment_summary_api",
+                "regex": r"^api/enrollments/",
+                "relative_path": "urls",
             }
         },
-        PluginSettings.CONFIG: {
-            ProjectType.LMS: {
-                PluginSettings.COMMON: {},
-                PluginSettings.PRODUCTION: {},
-                PluginSettings.DEVSTACK: {},
+        "settings_config": {
+            "lms.djangoapp": {
+                "common": {"relative_path": "settings.common"},
+                "production": {"relative_path": "settings.production"},
             }
-        }
+        },
     }

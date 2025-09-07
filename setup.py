@@ -1,38 +1,36 @@
 """
-Setup configuration for the lms-enrollment-summary plugin
+Setup configuration for the LMS Enrollment Summary API plugin
 """
 from setuptools import setup, find_packages
 
 setup(
-    name="lms-enrollment-summary",
+    name="lms-enrollment-summary-api",
     version="1.0.0",
-    description="A Django plugin for Open edX that provides enrollment summary API",
-    long_description=open("README.md").read(),
+    description="Open edX plugin providing enrollment summary API endpoints",
+    long_description=open('README.md').read(),
     long_description_content_type="text/markdown",
-    author="Open edX Developer",
-    author_email="developer@example.com",
+    author="Marcus",
+    author_email="marcus@example.com",
+    url="https://github.com/marcus102/lms-enrollment-summary-api.git",
     packages=find_packages(),
     include_package_data=True,
     python_requires=">=3.10",
     install_requires=[
         "Django>=3.2,<4.0",
         "djangorestframework>=3.12.0",
-        "opaque-keys",
-        "edx-django-utils",
+        "edx-opaque-keys[django]",
     ],
     entry_points={
         "lms.djangoapp": [
-            "lms_enrollment_summary = lms_enrollment_summary.apps:LMSEnrollmentSummaryConfig",
-        ]
+            "enrollment_summary_api = enrollment_summary.apps:EnrollmentSummaryAPIConfig",
+        ],
     },
     classifiers=[
-        "Development Status :: 3 - Alpha",
-        "Framework :: Django",
-        "Framework :: Django :: 3.2",
-        "Intended Audience :: Developers",
-        "License :: OSI Approved :: GNU Affero General Public License v3",
-        "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3",
+        "Development Status :: 4 - Beta",
+        "Intended Audience :: Education",
+        "License :: OSI Approved :: AGPL License",
         "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Framework :: Django :: 3.2",
     ],
 )

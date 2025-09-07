@@ -1,13 +1,17 @@
 """
-Production settings for the Enrollment Summary API plugin.
+Production settings for the Enrollment Summary API plugin
 """
 
-from .common import *
-
-# In production, we might want longer cache times
-ENROLLMENT_SUMMARY_API_SETTINGS.update({
-    'CACHE_TIMEOUT': 900,  # 15 minutes in production
-})
-
-# More restrictive logging in production
-LOGGING_CONFIG['loggers']['enrollment_summary_api']['level'] = 'WARNING'
+def plugin_settings(settings):
+    """
+    Production-specific settings.
+    """
+    # Set more conservative cache timeout in production
+    settings.ENROLLMENT_SUMMARY_CACHE_TIMEOUT = 600  # 10 minutes
+    
+    # Configure logging for production
+    settings.LOGGING['loggers']['enrollment_summary_api'] = {
+        'handlers': ['local'],
+        'level': 'WARNING',  # Less verbose in production
+        'propagate': True,
+    }

@@ -1,15 +1,11 @@
 """
-URL configuration for LMS Enrollment Summary API
+URL configuration for the Enrollment Summary API
 """
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import EnrollmentSummaryViewSet
+from django.urls import path
+from .views import EnrollmentSummaryAPIView
 
-app_name = 'lms_enrollment_summary'
-
-router = DefaultRouter()
-router.register(r'summary', EnrollmentSummaryViewSet, basename='enrollment-summary')
+app_name = 'enrollment_summary_api'
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path('summary/', EnrollmentSummaryAPIView.as_view(), name='enrollment-summary'),
 ]

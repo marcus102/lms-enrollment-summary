@@ -1,4 +1,9 @@
 include README.md
 include LICENSE
 recursive-include enrollment_summary_api *.py
-recursive-include tests *.py
+recursive-include enrollment_summary_api *.html
+recursive-include enrollment_summary_api *.js
+recursive-include enrollment_summary_api *.css
+recursive-exclude enrollment_summary_api/tests *
+recursive-exclude enrollment_summary_api *.pyc
+recursive-exclude enrollment_summary_api *.pyo

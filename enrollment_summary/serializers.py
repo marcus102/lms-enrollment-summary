@@ -1,66 +1,56 @@
 """
-Serializers for LMS Enrollment Summary API
+Serializers for the Enrollment Summary API
 """
+
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from student.models import CourseEnrollment
-from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
 
 User = get_user_model()
 
 
 class EnrollmentSummarySerializer(serializers.Serializer):
     """
-    Serializer for enrollment summary data
+    Serializer for enrollment summary data.
+
+    Returns structured data about a user's course enrollment including
+    course details and enrollment status.
     """
-    user_id = serializers.IntegerField()
-    username = serializers.CharField()
-    course_key = serializers.CharField()
-    course_title = serializers.CharField()
-    enrollment_status = serializers.CharField()
-    is_active = serializers.BooleanField()
-    enrollment_date = serializers.DateTimeField()
-    graded_subsections_count = serializers.IntegerField()
 
-    def to_representation(self, instance):
-        """
-        Convert enrollment instance to dictionary representation
-        """
-        try:
-            course_overview = CourseOverview.objects.get(id=instance.course_id)
-            graded_subsections_count = self._get_graded_subsections_count(course_overview)
-        except CourseOverview.DoesNotExist:
-            course_overview = None
-            graded_subsections_count = 0
+    user_id = serializers.IntegerField(help_text="The ID of the enrolled user")
+    username = serializers.CharField(help_text="Username of the enrolled user")
+    course_key = serializers.CharField(help_text="Unique identifier for the course")
+    course_title = serializers.CharField(
+        help_text="Display title of the course", allow_null=True
+    )
+    course_short_description = serializers.CharField(
+        help_text="Brief description of the course", allow_null=True
+    )
+    enrollment_status = serializers.CharField(
+        help_text="Current enrollment status (active, inactive)"
+    )
+    enrollment_mode = serializers.CharField(
+        help_text="Mode of enrollment (audit, verified, honor, etc.)"
+    )
+    is_active = serializers.BooleanField(
+        help_text="Whether the enrollment is currently active"
+    )
+    created_date = serializers.DateTimeField(
+        help_text="Date when the enrollment was created"
+    )
+    graded_subsections_count = serializers.IntegerField(
+        help_text="Number of graded subsections in the course", default=0
+    )
+    course_start = serializers.DateTimeField(
+        help_text="Course start date", allow_null=True
+    )
+    course_end = serializers.DateTimeField(help_text="Course end date", allow_null=True)
 
-        return {
-            'user_id': instance.user.id,
-            'username': instance.user.username,
-            'course_key': str(instance.course_id),
-            'course_title': course_overview.display_name if course_overview else 'Unknown Course',
-            'enrollment_status': instance.mode,
-            'is_active': instance.is_active,
-            'enrollment_date': instance.created,
-            'graded_subsections_count': graded_subsections_count,
-        }
+    def validate(self, data):
+        """Validate the enrollment summary data."""
+        if not data.get("course_key"):
+            raise serializers.ValidationError("Course key is required")
 
-    def _get_graded_subsections_count(self, course_overview):
-        """
-        Get count of graded subsections for a course
-        This is a simplified implementation - in production you might want to
-        cache this or compute it more efficiently
-        """
-        try:
-            from xmodule.modulestore.django import modulestore
-            course = modulestore().get_course(course_overview.id, depth=2)
-            if course:
-                graded_count = 0
-                for chapter in course.get_children():
-                    for section in chapter.get_children():
-                        if getattr(section, 'graded', False):
-                            graded_count += 1
-                return graded_count
-        except Exception:
-            # Fallback to a simple count based on course overview
-            pass
-        return 0
+        if not data.get("user_id"):
+            raise serializers.ValidationError("User ID is required")
+
+        return data
