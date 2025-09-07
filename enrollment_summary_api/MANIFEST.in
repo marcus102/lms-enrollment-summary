@@ -1,0 +1,4 @@
+include README.md
+include LICENSE
+recursive-include enrollment_summary_api *.py
+recursive-include tests *.py
