@@ -1,31 +1,28 @@
-"""
-Django app configuration for the Enrollment Summary API plugin
-"""
-
 from django.apps import AppConfig
+from openedx.core.djangoapps.plugins.constants import PluginSettings, PluginURLs, ProjectType
 
 
-class EnrollmentSummaryAPIConfig(AppConfig):
+class EnrollmentSummaryConfig(AppConfig):
     """
-    Configuration for the Enrollment Summary API Django application.
+    Django app configuration for the Enrollment Summary API plugin.
     """
-
-    name = "enrollment_summary_api"
+    name = "enrollment_summary"
     verbose_name = "LMS Enrollment Summary API"
-    default_auto_field = "django.db.models.BigAutoField"
-
+    
     plugin_app = {
-        "url_config": {
-            "lms.djangoapp": {
-                "namespace": "enrollment_summary_api",
-                "regex": r"^api/enrollments/",
-                "relative_path": "urls",
+        PluginURLs.CONFIG: {
+            ProjectType.LMS: {
+                PluginURLs.NAMESPACE: "enrollment_summary",
+                PluginURLs.REGEX: r"^api/enrollments/",
+                PluginURLs.RELATIVE_PATH: "urls",
             }
         },
-        "settings_config": {
-            "lms.djangoapp": {
-                "common": {"relative_path": "settings.common"},
-                "production": {"relative_path": "settings.production"},
+        PluginSettings.CONFIG: {
+            ProjectType.LMS: {
+                PluginSettings.COMMON: {
+                    "ENROLLMENT_SUMMARY_PAGE_SIZE": 20,
+                    "ENROLLMENT_SUMMARY_MAX_PAGE_SIZE": 100,
+                }
             }
         },
     }

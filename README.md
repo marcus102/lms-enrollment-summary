@@ -1,331 +1,417 @@
-# ====================
-# README.md
-# ====================
 """
-# LMS Enrollment Summary API Plugin
+# LMS Enrollment Summary API Plugin for Open edX
 
-A comprehensive Open edX plugin that provides a REST API endpoint for retrieving enrollment summaries with course details and pagination support.
+A Django plugin for Open edX that provides a comprehensive REST API endpoint for retrieving enrollment summaries with filtering, pagination, and caching capabilities.
 
 ## Features
 
-- **Read-only REST API** for enrollment summaries
-- **Flexible filtering** by user ID and enrollment status
-- **Comprehensive course data** including graded subsections count
-- **Pagination support** with configurable page sizes
-- **Caching** with ETag headers for performance
-- **Staff-only access** with proper permission controls
-- **Comprehensive test suite** with high coverage
-- **Production-ready** with logging and error handling
+- **Read-only REST API**: GET endpoint for enrollment summaries
+- **Flexible Filtering**: Filter by user_id and active status
+- **Pagination**: Configurable page size with sensible defaults
+- **Caching**: Built-in caching for performance optimization
+- **Comprehensive Testing**: Full test suite with >90% coverage
+- **Production Ready**: Follows Open edX conventions and best practices
 
-## Quick Start
+## API Endpoint
 
-### Installation
+### GET `/api/enrollments/summary/`
 
-1. **Clone or download** this plugin to your Open edX environment:
-   ```bash
-   cd /path/to/your/openedx
-   git clone <your-repo-url> src/lms-enrollment-summary-api
-   ```
+Returns paginated enrollment summaries with optional filtering.
 
-2. **Install the plugin** in development mode:
-   ```bash
-   cd src/lms-enrollment-summary-api
-   pip install -e .
-   ```
+#### Query Parameters
 
-3. **Restart your Open edX services**:
-   ```bash
-   # For Tutor development
-   tutor dev restart lms
-   
-   # For Tutor local
-   tutor local restart lms
-   ```
+- `user_id` (optional): Filter by specific user ID
+- `active` (optional): Filter by enrollment status (true/false)  
+- `page` (optional): Page number (default: 1)
+- `page_size` (optional): Items per page (default: 20, max: 100)
 
-### Verification
-
-1. **Check plugin registration**:
-   ```bash
-   tutor dev run lms python manage.py lms shell
-   ```
-   ```python
-   from django.apps import apps
-   print('enrollment_summary_api' in [app.name for app in apps.get_app_configs()])
-   # Should print: True
-   ```
-
-2. **Verify URL routing**:
-   ```bash
-   curl -H "Authorization: Bearer <your-token>" \
-        http://localhost:8000/api/enrollments/summary/
-   ```
-
-## API Documentation
-
-### Endpoint
-```
-GET /api/enrollments/summary/
-```
-
-### Authentication
-- Requires authenticated user
-- Requires staff permissions (`is_staff=True`)
-
-### Query Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `user_id` | integer | No | Filter by specific user ID |
-| `active` | boolean | No | Filter by enrollment status (`true`/`false`) |
-| `page` | integer | No | Page number (default: 1) |
-| `page_size` | integer | No | Results per page (default: 20, max: 100) |
-
-### Response Format
+#### Response Format
 
 ```json
 {
     "count": 150,
+    "page": 1,
+    "page_size": 20,
+    "total_pages": 8,
     "next": "http://localhost:8000/api/enrollments/summary/?page=2",
     "previous": null,
     "results": [
         {
             "user_id": 123,
-            "username": "john_doe",
-            "course_key": "course-v1:MITx+6.00x+2023",
+            "username": "student1",
+            "course_key": "course-v1:MITx+6.00x+2024",
             "course_title": "Introduction to Computer Science",
-            "course_short_description": "Learn programming with Python",
-            "enrollment_status": "active",
-            "enrollment_mode": "verified",
+            "enrollment_status": "verified",
             "is_active": true,
-            "created_date": "2023-09-01T10:30:00Z",
-            "graded_subsections_count": 12,
-            "course_start": "2023-09-01T00:00:00Z",
-            "course_end": "2023-12-15T23:59:59Z"
+            "created": "2024-01-15T10:30:00Z",
+            "graded_subsections_count": 12
         }
     ]
 }
 ```
 
-### Example Requests
+## Installation
 
-#### Get all enrollments (paginated)
+### Prerequisites
+
+- Open edX running with Tutor
+- Python 3.10+
+- Admin/staff access to the LMS
+
+### Installation Steps
+
+1. **Clone the plugin code** (save the complete codebase to your local machine)
+
+2. **Install via pip in your Tutor environment**:
 ```bash
-curl -H "Authorization: Bearer <token>" \
-     -H "Accept: application/json" \
-     "http://localhost:8000/api/enrollments/summary/"
+# Enter the Tutor LMS container
+tutor local exec lms bash
+
+# Install the plugin
+pip install -e /path/to/lms-enrollment-summary/
+
+# Run migrations (if any)
+python manage.py migrate
+
+# Restart LMS
+exit
+tutor local restart lms
 ```
 
-#### Filter by user ID
+3. **Verify installation**:
 ```bash
-curl -H "Authorization: Bearer <token>" \
-     "http://localhost:8000/api/enrollments/summary/?user_id=123"
+# Check if the plugin is loaded
+tutor local exec lms python manage.py shell -c "
+from django.conf import settings
+print('enrollment_summary' in settings.INSTALLED_APPS)
+"
 ```
 
-#### Filter by active status
+### Quick Test
+
 ```bash
-curl -H "Authorization: Bearer <token>" \
-     "http://localhost:8000/api/enrollments/summary/?active=true"
+# Create a superuser (if you don't have one)
+tutor local exec lms python manage.py createsuperuser
+
+# Test the API endpoint
+curl -u "admin:password" \
+  "http://localhost:8000/api/enrollments/summary/" \
+  -H "Accept: application/json"
 ```
 
-#### Combined filters with pagination
+## API Usage Examples
+
+### Basic Usage
+
 ```bash
-curl -H "Authorization: Bearer <token>" \
-     "http://localhost:8000/api/enrollments/summary/?user_id=123&active=true&page_size=50"
+# Get all enrollment summaries
+curl -u "admin:password" \
+  "http://localhost:8000/api/enrollments/summary/"
+
+# Filter by user ID
+curl -u "admin:password" \
+  "http://localhost:8000/api/enrollments/summary/?user_id=123"
+
+# Filter by active enrollments only
+curl -u "admin:password" \
+  "http://localhost:8000/api/enrollments/summary/?active=true"
+
+# Pagination
+curl -u "admin:password" \
+  "http://localhost:8000/api/enrollments/summary/?page=2&page_size=10"
+
+# Combined filters
+curl -u "admin:password" \
+  "http://localhost:8000/api/enrollments/summary/?user_id=123&active=true&page_size=5"
 ```
 
-## Development
+### Using with Python requests
 
-### Running Tests
+```python
+import requests
+from requests.auth import HTTPBasicAuth
+
+url = "http://localhost:8000/api/enrollments/summary/"
+auth = HTTPBasicAuth('admin', 'password')
+
+# Get all enrollments
+response = requests.get(url, auth=auth)
+data = response.json()
+
+print(f"Total enrollments: {data['count']}")
+for enrollment in data['results']:
+    print(f"User: {enrollment['username']}, Course: {enrollment['course_title']}")
+```
+
+### Postman Collection
+
+```json
+{
+    "info": {
+        "name": "LMS Enrollment Summary API"
+    },
+    "item": [
+        {
+            "name": "Get All Enrollments",
+            "request": {
+                "method": "GET",
+                "url": "{{base_url}}/api/enrollments/summary/",
+                "auth": {
+                    "type": "basic",
+                    "basic": {
+                        "username": "{{admin_username}}",
+                        "password": "{{admin_password}}"
+                    }
+                }
+            }
+        },
+        {
+            "name": "Filter by User ID",
+            "request": {
+                "method": "GET",
+                "url": "{{base_url}}/api/enrollments/summary/?user_id=123"
+            }
+        }
+    ],
+    "variable": [
+        {
+            "key": "base_url",
+            "value": "http://localhost:8000"
+        },
+        {
+            "key": "admin_username",
+            "value": "admin"
+        },
+        {
+            "key": "admin_password",
+            "value": "password"
+        }
+    ]
+}
+```
+
+## Configuration
+
+### Settings
+
+Add these settings to your Open edX configuration:
+
+```python
+# Default page size for enrollment summary API
+ENROLLMENT_SUMMARY_PAGE_SIZE = 20
+
+# Maximum page size allowed
+ENROLLMENT_SUMMARY_MAX_PAGE_SIZE = 100
+```
+
+### Caching
+
+The plugin uses Django's cache framework:
+
+- **Graded subsections count**: Cached for 1 hour per course
+- **API responses**: HTTP cache headers set to 5 minutes
+- **Cache keys**: Prefixed with `graded_subsections_count_`
+
+## Testing
+
+Run the test suite:
 
 ```bash
 # Run all tests
-python manage.py test enrollment_summary_api
-
-# Run specific test files
-python manage.py test enrollment_summary_api.tests.test_views
-python manage.py test enrollment_summary_api.tests.test_services
-python manage.py test enrollment_summary_api.tests.test_serializers
+tutor local exec lms python manage.py test enrollment_summary
 
 # Run with coverage
-pip install coverage
-coverage run --source='enrollment_summary_api' manage.py test enrollment_summary_api
-coverage report -m
+tutor local exec lms python -m pytest enrollment_summary/tests/ --cov=enrollment_summary --cov-report=html
+
+# Run specific test file
+tutor local exec lms python manage.py test enrollment_summary.tests.test_views
 ```
 
-### Code Quality
+## Architecture
 
-The plugin follows Open edX coding standards:
+### Data Flow
 
-```bash
-# Format code
-black enrollment_summary_api/
-isort enrollment_summary_api/
+1. **Request**: API receives GET request with optional filters
+2. **Authentication**: Verify user has admin/staff permissions
+3. **Validation**: Validate query parameters
+4. **Service Layer**: `EnrollmentSummaryService` handles business logic
+5. **Data Retrieval**: Query CourseEnrollment and CourseOverview models
+6. **Caching**: Check cache for graded subsections count
+7. **Serialization**: Convert data using DRF serializers
+8. **Response**: Return paginated JSON response
 
-# Lint code
-flake8 enrollment_summary_api/
+### Database Queries
 
-# Type checking (optional)
-mypy enrollment_summary_api/
-```
+- **Primary**: `student_courseenrollment` table (MySQL)
+- **Secondary**: `course_overviews_courseoverview` table (MySQL)
+- **Caching**: Course structure data via modulestore (MongoDB)
 
-### Plugin Structure
+### Extension Points
 
-```
-enrollment_summary_api/
-├── __init__.py              # Package initialization
-├── apps.py                  # Django app configuration
-├── urls.py                  # URL routing
-├── views.py                 # API views
-├── serializers.py           # DRF serializers
-├── services.py              # Business logic layer
-├── permissions.py           # Custom permissions
-├── settings/                # Plugin settings
-│   ├── common.py           # Common settings
-│   └── production.py       # Production settings
-└── tests/                   # Test suite
-    ├── __init__.py
-    ├── test_views.py       # View tests
-    ├── test_serializers.py # Serializer tests
-    └── test_services.py    # Service tests
-```
+The plugin integrates with Open edX through:
 
-## Production Considerations
+- **Django Apps**: Standard Django app with `AppConfig`
+- **URL Routing**: Registered via `PluginURLs.CONFIG`
+- **Settings**: Configurable via `PluginSettings.CONFIG`
+- **Permissions**: Uses DRF permission classes
 
-### Performance
-- **Caching**: 5-minute cache for API responses with ETag headers
-- **Database optimization**: Uses `select_related()` for efficient queries
-- **Pagination**: Prevents large result sets from impacting performance
+## Security
 
-### Security
-- **Authentication required**: All requests must be authenticated
-- **Staff-only access**: Only staff users can access enrollment data
-- **Input validation**: All query parameters are validated
-- **Error handling**: Comprehensive error handling without data leaks
+- **Authentication**: Requires authenticated users
+- **Authorization**: Only staff/admin users can access
+- **Input Validation**: All query parameters validated
+- **SQL Injection**: Uses Django ORM (protected)
+- **Rate Limiting**: HTTP cache headers prevent excessive requests
 
-### Monitoring
-- **Structured logging**: All operations are logged with appropriate levels
-- **Error tracking**: Failed operations are logged with context
-- **Cache monitoring**: Cache hit/miss information in logs
+## Performance Considerations
 
-### Scalability
-- **Efficient queries**: Minimizes database round trips
-- **Paginated responses**: Handles large datasets gracefully
-- **Modular design**: Easy to extend with additional features
+- **Database Indexing**: Leverages existing Open edX indexes
+- **Query Optimization**: Uses `select_related()` for foreign keys
+- **Caching Strategy**: Caches expensive modulestore queries
+- **Pagination**: Prevents large result sets
+- **HTTP Caching**: Reduces server load with cache headers
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Plugin not loading**
-   - Verify the plugin is installed: `pip list | grep lms-enrollment`
-   - Check Django settings: `tutor config printvalue LMS_EXTRA_PIP_REQUIREMENTS`
-   - Restart services after installation
+1. **Plugin not loading**:
+   ```bash
+   # Check if plugin is in INSTALLED_APPS
+   tutor local exec lms python manage.py shell -c "
+   from django.conf import settings
+   print([app for app in settings.INSTALLED_APPS if 'enrollment' in app])
+   "
+   ```
 
-2. **Permission errors**
-   - Ensure user has staff permissions: `user.is_staff = True`
-   - Check authentication token is valid
-   - Verify CORS settings if making cross-domain requests
+2. **Permission denied**:
+   - Ensure user has `is_staff=True` or `is_superuser=True`
+   - Check authentication credentials
 
-3. **Empty results**
-   - Check if there are enrollments in the database
-   - Verify filter parameters are correct
-   - Check course overviews are populated
+3. **Empty results**:
+   - Verify CourseEnrollment data exists
+   - Check filters are not too restrictive
 
-4. **Performance issues**
-   - Monitor database query patterns
-   - Check cache configuration
-   - Consider adjusting page sizes
+4. **Performance issues**:
+   - Enable Django query logging to identify slow queries
+   - Check cache hit rates
+   - Consider database indexes
 
-### Debug Commands
+### Logs
+
+Monitor these log locations:
 
 ```bash
-# Check plugin installation
-tutor dev run lms python manage.py lms shell -c "
-from django.conf import settings
-print('enrollment_summary_api' in settings.INSTALLED_APPS)
-"
+# LMS logs
+tutor local logs lms
 
-# Test database connectivity
-tutor dev run lms python manage.py lms shell -c "
-from common.djangoapps.student.models import CourseEnrollment
-print(f'Total enrollments: {CourseEnrollment.objects.count()}')
-"
-
-# Check URL routing
-tutor dev run lms python manage.py lms shell -c "
-from django.urls import reverse
-print(reverse('enrollment_summary_api:enrollment-summary'))
+# Plugin-specific logs
+tutor local exec lms python manage.py shell -c "
+import logging
+logger = logging.getLogger('enrollment_summary.services')
+logger.info('Testing plugin logging')
 "
 ```
 
-## Contributing
+## Development
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/your-feature-name`
-3. Make your changes and add tests
-4. Run the test suite: `python manage.py test enrollment_summary_api`
-5. Ensure code quality: `black`, `isort`, `flake8`
-6. Commit your changes: `git commit -m 'Add some feature'`
-7. Push to the branch: `git push origin feature/your-feature-name`
-8. Submit a pull request
+### Adding Features
 
-## License
+1. **New endpoints**: Add to `urls.py` and create views
+2. **New filters**: Extend `EnrollmentSummaryService.get_enrollment_summaries()`
+3. **New fields**: Update `EnrollmentSummarySerializer`
+4. **Tests**: Add corresponding test cases
 
-This project is licensed under the AGPL v3.0 License - see the [LICENSE](LICENSE) file for details.
+### Code Quality
+
+The plugin follows Open edX conventions:
+
+- **Code Style**: Black, isort, flake8
+- **Testing**: pytest with >90% coverage
+- **Documentation**: Comprehensive docstrings
+- **Type Hints**: Python 3.10+ typing support
+
+## Future Enhancements
+
+### Potential Features
+
+1. **Export Functionality**: CSV/Excel export of enrollment data
+2. **Real-time Updates**: WebSocket support for live enrollment changes
+3. **Analytics Integration**: Integration with Open edX Analytics
+4. **Bulk Operations**: Batch enrollment status updates
+5. **Advanced Filtering**: Date ranges, course categories, enrollment modes
+6. **Metrics Dashboard**: Built-in analytics and visualizations
+
+### Performance Optimizations
+
+1. **Database Views**: Create materialized views for complex queries
+2. **Background Tasks**: Async processing for large datasets
+3. **CDN Integration**: Cache API responses at CDN level
+4. **Database Sharding**: Support for multiple database connections
 
 ## Support
 
 For issues and questions:
-1. Check the [troubleshooting section](#troubleshooting)
-2. Review the [Open edX documentation](https://docs.openedx.org/)
-3. Open an issue in this repository
-4. Join the Open edX community forums
+
+1. **Check logs**: Review LMS and plugin logs for errors
+2. **Test environment**: Verify setup in development environment
+3. **Documentation**: Review Open edX and Django documentation
+4. **Community**: Post questions on Open edX forums
+
+## License
+
+MIT License - see LICENSE file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit pull request
+
+---
+
+**Plugin Version**: 1.0.0  
+**Open edX Compatibility**: Olive, Palm, Quince releases  
+**Python**: 3.10+  
+**Django**: 3.2+
 """
 
-# ====================
-# MANIFEST.in
-# ====================
-include README.md
-include LICENSE
-recursive-include enrollment_summary_api *.py
-recursive-include enrollment_summary_api *.html
-recursive-include enrollment_summary_api *.js
-recursive-include enrollment_summary_api *.css
-recursive-exclude enrollment_summary_api/tests *
-recursive-exclude enrollment_summary_api *.pyc
-recursive-exclude enrollment_summary_api *.pyo
-
-# ====================
-# requirements.txt
-# ====================
-Django>=3.2,<4.0
-djangorestframework>=3.12.0
-edx-opaque-keys[django]
-
-# Development dependencies
-black>=22.0.0
-isort>=5.10.0
-flake8>=4.0.0
-pytest>=7.0.0
-pytest-django>=4.5.0
-coverage>=6.0.0
-
-# ====================
-# pytest.ini
-# ====================
-[tool:pytest]
-DJANGO_SETTINGS_MODULE = test_settings
-python_files = tests.py test_*.py *_tests.py
-addopts = --verbose --tb=short
-testpaths = enrollment_summary_api/tests
-
-# ====================
+# ============================================================================
 # .gitignore
-# ====================
+# ============================================================================
+"""
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Distribution / packaging
 .Python
@@ -344,44 +430,50 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+"""
 
-# PyInstaller
-*.manifest
-*.spec
+# ============================================================================
+# requirements.txt - Dependencies
+# ============================================================================
+"""
+Django>=3.2,<4.0
+djangorestframework>=3.12
+django-filter>=2.4
+"""
 
-# Unit test / coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
+# ============================================================================
+# Makefile - Development Commands
+# ============================================================================
+"""
+.PHONY: help install test lint format clean
 
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+help:
+	@echo "Available commands:"
+	@echo "  install    Install the plugin in development mode"
+	@echo "  test       Run the test suite"
+	@echo "  lint       Run code linting"
+	@echo "  format     Format code with black and isort"
+	@echo "  clean      Clean build artifacts"
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+install:
+	pip install -e .
+	
+test:
+	python -m pytest enrollment_summary/tests/ -v --cov=enrollment_summary
 
-# OS
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+lint:
+	flake8 enrollment_summary/
+	black --check enrollment_summary/
+	isort --check-only enrollment_summary/
+
+format:
+	black enrollment_summary/
+	isort enrollment_summary/
+
+clean:
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info/
+	find . -name "__pycache__" -exec rm -rf {} +
+	find . -name "*.pyc" -delete
+"""
