@@ -1,24 +1,18 @@
 from rest_framework import serializers
-from django.contrib.auth.models import User
-from student.models import CourseEnrollment
-from openedx.core.djangoapps.content.course_overviews.models import CourseOverview
-
 
 class EnrollmentSummarySerializer(serializers.Serializer):
-    """
-    Serializer for enrollment summary data.
-    """
-    user_id = serializers.IntegerField()
-    username = serializers.CharField()
     course_key = serializers.CharField()
     course_title = serializers.CharField()
     enrollment_status = serializers.CharField()
-    is_active = serializers.BooleanField()
-    created = serializers.DateTimeField()
     graded_subsections_count = serializers.IntegerField()
-    
-    class Meta:
-        fields = [
-            'user_id', 'username', 'course_key', 'course_title',
-            'enrollment_status', 'is_active', 'created', 'graded_subsections_count'
-        ]
+
+    def to_representation(self, obj):
+        titles = self.context.get("course_titles", {})
+        graded_counts = self.context.get("graded_counts", {})
+        course_key = str(getattr(obj, "course_id"))
+        return {
+            "course_key": course_key,
+            "course_title": titles.get(course_key, "Unknown"),
+            "enrollment_status": "active" if getattr(obj, "is_active", False) else "inactive",
+            "graded_subsections_count": int(graded_counts.get(course_key, 0)),
+        }

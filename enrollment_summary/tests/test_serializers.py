@@ -1,65 +1,23 @@
-from django.test import TestCase
+import types
 from enrollment_summary.serializers import EnrollmentSummarySerializer
-from datetime import datetime
 
+def test_enrollment_summary_serializer_basic():
+    # Dummy enrollment-like object
+    obj = types.SimpleNamespace(
+        course_id="course-v1:EDX+TST101+2025",
+        is_active=True,
+        user_id=42,
+    )
 
-class EnrollmentSummarySerializerTest(TestCase):
-    """
-    Test cases for EnrollmentSummarySerializer.
-    """
-    
-    def test_serialization(self):
-        """Test serialization of enrollment summary data."""
-        data = {
-            'user_id': 1,
-            'username': 'testuser',
-            'course_key': 'course-v1:TestOrg+Test101+2024',
-            'course_title': 'Test Course',
-            'enrollment_status': 'verified',
-            'is_active': True,
-            'created': datetime.now(),
-            'graded_subsections_count': 5
-        }
-        
-        serializer = EnrollmentSummarySerializer(data)
-        serialized_data = serializer.data
-        
-        self.assertEqual(serialized_data['user_id'], 1)
-        self.assertEqual(serialized_data['username'], 'testuser')
-        self.assertEqual(serialized_data['course_key'], 'course-v1:TestOrg+Test101+2024')
-        self.assertEqual(serialized_data['course_title'], 'Test Course')
-        self.assertEqual(serialized_data['enrollment_status'], 'verified')
-        self.assertTrue(serialized_data['is_active'])
-        self.assertEqual(serialized_data['graded_subsections_count'], 5)
-    
-    def test_multiple_items_serialization(self):
-        """Test serialization of multiple enrollment summaries."""
-        data = [
-            {
-                'user_id': 1,
-                'username': 'user1',
-                'course_key': 'course-v1:TestOrg+Test101+2024',
-                'course_title': 'Test Course 1',
-                'enrollment_status': 'verified',
-                'is_active': True,
-                'created': datetime.now(),
-                'graded_subsections_count': 3
-            },
-            {
-                'user_id': 2,
-                'username': 'user2',
-                'course_key': 'course-v1:TestOrg+Test102+2024',
-                'course_title': 'Test Course 2',
-                'enrollment_status': 'audit',
-                'is_active': False,
-                'created': datetime.now(),
-                'graded_subsections_count': 5
-            }
-        ]
-        
-        serializer = EnrollmentSummarySerializer(data, many=True)
-        serialized_data = serializer.data
-        
-        self.assertEqual(len(serialized_data), 2)
-        self.assertEqual(serialized_data[0]['user_id'], 1)
-        self.assertEqual(serialized_data[1]['user_id'], 2)
+    context = {
+        "course_titles": {"course-v1:EDX+TST101+2025": "Test Course"},
+        "graded_counts": {"course-v1:EDX+TST101+2025": 7},
+    }
+
+    ser = EnrollmentSummarySerializer(instance=obj, context=context)
+    data = ser.data
+
+    assert data["course_key"] == "course-v1:EDX+TST101+2025"
+    assert data["course_title"] == "Test Course"
+    assert data["enrollment_status"] == "active"
+    assert data["graded_subsections_count"] == 7

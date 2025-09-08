@@ -1,45 +1,46 @@
-# enrollment_summary/apps.py - Fixed Django App Configuration
-from django.apps import AppConfig
+from openedx.core.djangoapps.plugins.constants import (
+    PluginURLs,
+    PluginSettings,
+    ProjectType,
+)
+from openedx.core.djangoapps.plugins.plugin_app import PluginApp
 
 
-class EnrollmentSummaryConfig(AppConfig):
-    """
-    Django app configuration for the Enrollment Summary API plugin.
-    Compatible with all Open edX versions.
-    """
+class EnrollmentSummaryConfig(PluginApp):
     name = "enrollment_summary"
     verbose_name = "LMS Enrollment Summary API"
-    default_auto_field = 'django.db.models.BigAutoField'
+    default_auto_field = "django.db.models.BigAutoField"
 
-    def ready(self):
-        """
-        Initialize the plugin when Django starts.
-        """
-        pass
-
-
-# For Open edX plugin discovery (if supported)
-try:
-    from openedx.core.djangoapps.plugins.constants import PluginSettings, PluginURLs, ProjectType
-    
-    # Only add plugin configuration if the Open edX plugin system is available
-    EnrollmentSummaryConfig.plugin_app = {
+    plugin_app = {
+        # URLs (mounted under /api/enrollments/)
         PluginURLs.CONFIG: {
             ProjectType.LMS: {
-                PluginURLs.NAMESPACE: "enrollment_summary",
-                PluginURLs.REGEX: r"^api/enrollments/",
-                PluginURLs.RELATIVE_PATH: "urls",
-            }
+                "namespace": "enrollment_summary",
+                "app_name": "enrollment_summary",
+                "regex": r"^api/enrollments/",
+                "relative_path": "urls",
+            },
         },
+        # Settings that Open edX will merge automatically
         PluginSettings.CONFIG: {
             ProjectType.LMS: {
-                PluginSettings.COMMON: {
-                    "ENROLLMENT_SUMMARY_PAGE_SIZE": 20,
-                    "ENROLLMENT_SUMMARY_MAX_PAGE_SIZE": 100,
-                }
-            }
+                "common": {
+                    "INSTALLED_APPS": ["enrollment_summary"],
+                    "REST_FRAMEWORK": {
+                        "DEFAULT_FILTER_BACKENDS": [
+                            "django_filters.rest_framework.DjangoFilterBackend"
+                        ],
+                    },
+                },
+                "production": {
+                    "FEATURES": {"ENABLE_ENROLLMENT_SUMMARY_API": True},
+                    # Example: If you want to restrict page size or cache differently in prod
+                    "ENROLLMENT_SUMMARY": {
+                        "DEFAULT_PAGE_SIZE": 20,
+                        "MAX_PAGE_SIZE": 100,
+                        "CACHE_TTL_SECONDS": 300,
+                    },
+                },
+            },
         },
     }
-except ImportError:
-    # Fallback for older Open edX versions or when plugin system is not available
-    pass

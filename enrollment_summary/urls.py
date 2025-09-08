@@ -1,10 +1,9 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import EnrollmentSummaryViewSet
+from django.urls import path
+from .views import EnrollmentSummaryView
 
-router = DefaultRouter()
-router.register(r'summary', EnrollmentSummaryViewSet, basename='enrollment-summary')
+app_name = "enrollment_summary"
 
 urlpatterns = [
-    path('', include(router.urls)),
+    # final route becomes: /api/enrollments/summary
+    path("summary", EnrollmentSummaryView.as_view(), name="summary"),
 ]
