@@ -1,10 +1,11 @@
 from setuptools import setup, find_packages
-import os
+
 
 # Read README for long description
 def read_readme():
-    with open('README.md', 'r', encoding='utf-8') as f:
+    with open("README.md", "r", encoding="utf-8") as f:
         return f.read()
+
 
 setup(
     name="lms-enrollment-summary",
@@ -18,9 +19,9 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        "Django>=3.2,<4.0",
+        "Django>=4.2,<4.3",
         "djangorestframework>=3.12",
-        "django-filter>=2.4",
+        "django-filter>=25.1",
     ],
     entry_points={
         # Open edX plugin entry points
