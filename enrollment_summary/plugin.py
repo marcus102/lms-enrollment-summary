@@ -1,17 +1,14 @@
 """
-Plugin configuration for Open edX.
+Optional plugin hooks for the enrollment_summary app.
+
+Note:
+- The plugin is registered via EnrollmentSummaryConfig in apps.py (entry_points and PluginURLs).
+- Keep this file for future signals or extra integration points (e.g., waffle flags, listeners).
 """
-
-from django.conf import settings
-
-
-def ready():
-    """
-    Called when the plugin is ready.
-    """
-    pass
-
-
-# Plugin metadata
-__version__ = "1.0.0"
-__description__ = "LMS Enrollment Summary API Plugin"
+# Example placeholder for future signals:
+# from django.dispatch import receiver
+# from some_app.signals import some_signal
+#
+# @receiver(some_signal)
+# def handle_some_signal(sender, **kwargs):
+#     pass
