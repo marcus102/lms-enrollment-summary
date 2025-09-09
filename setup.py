@@ -12,7 +12,10 @@ setup(
     ],
     entry_points={
         "lms.djangoapp": [
-            "enrollment_summary = tutor_enrollment_summary.hooks",
+            "enrollment_summary = enrollment_summary.apps:EnrollmentSummaryConfig",
+        ],
+        "cms.djangoapp": [
+            "enrollment_summary = enrollment_summary.apps:EnrollmentSummaryConfig",
         ],
     },
 )
