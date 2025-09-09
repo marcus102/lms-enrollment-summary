@@ -1,15 +1,10 @@
-from openedx.core.djangoapps.plugins.constants import (
-    PluginURLs,
-    PluginSettings,
-    ProjectType,
-)
-from openedx.core.djangoapps.plugins.plugin_app import PluginApp
+from django.apps import AppConfig
+from edx_django_utils.plugins.constants import PluginURLs, PluginSettings, ProjectType
 
 
-class EnrollmentSummaryConfig(PluginApp):
+class EnrollmentSummaryConfig(AppConfig):
     """
-    PluginApp-based AppConfig so Open edX plugin manager can detect and register
-    this app automatically when the package is installed.
+    Django AppConfig for the LMS Enrollment Summary plugin.
     """
 
     name = "enrollment_summary"
@@ -24,30 +19,19 @@ class EnrollmentSummaryConfig(PluginApp):
                 "regex": r"^api/enrollments/",
                 "relative_path": "urls",
             },
-            ProjectType.CMS: {
-                "namespace": "enrollment_summary",
-                "app_name": "enrollment_summary",
-                "regex": r"^api/enrollments/",
-                "relative_path": "urls",
-            },
+            # Remove CMS config since this is LMS-only functionality
         },
         PluginSettings.CONFIG: {
             ProjectType.LMS: {
-                "common": {
-                    "REST_FRAMEWORK": {
-                        "DEFAULT_FILTER_BACKENDS": [
-                            "django_filters.rest_framework.DjangoFilterBackend"
-                        ],
-                    },
-                },
-                "production": {
-                    "FEATURES": {"ENABLE_ENROLLMENT_SUMMARY_API": True},
-                    "ENROLLMENT_SUMMARY": {
-                        "DEFAULT_PAGE_SIZE": 20,
-                        "MAX_PAGE_SIZE": 100,
-                        "CACHE_TTL_SECONDS": 3,
-                    },
-                },
+                "common": {"relative_path": "settings.common"},
+                "production": {"relative_path": "settings.production"},
             }
         },
     }
+
+    def ready(self):
+        """
+        Connect signal handlers when the app is ready.
+        """
+        # Add any signal connections here if needed
+        pass
