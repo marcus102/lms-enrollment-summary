@@ -1,28 +1,82 @@
 from django.db.models import Count
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
+from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
 
 from rest_framework.generics import ListAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 
-from student.models import CourseEnrollment
-from course_overviews.models import CourseOverview
-
 from .serializers import EnrollmentSummarySerializer
 from .filters import EnrollmentSummaryFilter
 from .pagination import StandardResultsSetPagination
 from .permissions import IsSelfOrStaff
 
-# Try to import PersistentSubsectionGrade across supported paths
-try:
-    from lms.djangoapps.grades.models import PersistentSubsectionGrade
-except Exception:  # pragma: no cover (fallback)
-    try:
-        from grades.models import PersistentSubsectionGrade  # older paths
-    except Exception:
-        PersistentSubsectionGrade = None
+
+# Dynamic imports with comprehensive fallbacks
+def get_course_enrollment_model():
+    """Dynamically import CourseEnrollment from available paths."""
+    import_paths = [
+        "common.djangoapps.student.models",
+        "lms.djangoapps.student.models",
+        "student.models",
+        "openedx.core.djangoapps.student.models",
+    ]
+
+    for path in import_paths:
+        try:
+            module = __import__(path, fromlist=["CourseEnrollment"])
+            return getattr(module, "CourseEnrollment")
+        except (ImportError, AttributeError):
+            continue
+
+    raise ImportError("CourseEnrollment model not found in any known location")
+
+
+def get_course_overview_model():
+    """Dynamically import CourseOverview from available paths."""
+    import_paths = [
+        "openedx.core.djangoapps.content.course_overviews.models",
+        "lms.djangoapps.course_overviews.models",
+        "course_overviews.models",
+        "common.djangoapps.course_overviews.models",
+    ]
+
+    for path in import_paths:
+        try:
+            module = __import__(path, fromlist=["CourseOverview"])
+            return getattr(module, "CourseOverview")
+        except (ImportError, AttributeError):
+            continue
+
+    raise ImportError("CourseOverview model not found in any known location")
+
+
+def get_grades_model():
+    """Dynamically import PersistentSubsectionGrade from available paths."""
+    import_paths = [
+        "lms.djangoapps.grades.models",
+        "grades.models",
+        "common.djangoapps.grades.models",
+        "openedx.core.djangoapps.grades.models",
+    ]
+
+    for path in import_paths:
+        try:
+            module = __import__(path, fromlist=["PersistentSubsectionGrade"])
+            return getattr(module, "PersistentSubsectionGrade")
+        except (ImportError, AttributeError):
+            continue
+
+    return None
+
+
+# Initialize models
+CourseEnrollment = get_course_enrollment_model()
+CourseOverview = get_course_overview_model()
+PersistentSubsectionGrade = get_grades_model()
 
 
 class EnrollmentSummaryView(ListAPIView):
@@ -30,6 +84,7 @@ class EnrollmentSummaryView(ListAPIView):
     GET /api/enrollments/summary?user_id=&active=
     Returns: course_key, course_title, enrollment_status, graded_subsections_count
     """
+
     permission_classes = [IsAuthenticated, IsSelfOrStaff]
     serializer_class = EnrollmentSummarySerializer
     filter_backends = [DjangoFilterBackend]
@@ -43,19 +98,15 @@ class EnrollmentSummaryView(ListAPIView):
     def get_queryset(self):
         """
         Start from enrollments for the requested user (or current user).
-        We don't use select_related('course') because CourseEnrollment stores course_id (no FK).
         """
         params = self.request.query_params
         user_id = params.get("user_id")
         if user_id is None:
             user_id = self.request.user.id
         else:
-            # permissions.IsSelfOrStaff already validated it's int or staff
             user_id = int(user_id)
 
-        qs = CourseEnrollment.objects.filter(user_id=user_id)
-        # active filter will be applied by the FilterSet; we keep base qs constrained by user.
-        return qs
+        return CourseEnrollment.objects.filter(user_id=user_id)
 
     def list(self, request, *args, **kwargs):
         # Apply filters and paginate
@@ -63,31 +114,48 @@ class EnrollmentSummaryView(ListAPIView):
         page = self.paginate_queryset(queryset)
         objects = page if page is not None else queryset
 
-        # Collect course_ids visible on this page to keep lookups fast
+        # Collect course_ids visible on this page
         course_ids = [str(e.course_id) for e in objects]
 
-        # Titles
-        titles = {
-            str(rec["id"]): rec["display_name"]
-            for rec in CourseOverview.objects.filter(id__in=course_ids).values("id", "display_name")
-        }
+        # Get course titles
+        titles = {}
+        if course_ids:
+            try:
+                titles = {
+                    str(rec["id"]): rec["display_name"]
+                    for rec in CourseOverview.objects.filter(id__in=course_ids).values(
+                        "id", "display_name"
+                    )
+                }
+            except Exception as e:
+                # Log the error but continue
+                print(f"Error fetching course titles: {e}")
+                titles = {}
 
-        # Graded subsections count per course for this user
+        # Get graded subsections count
         graded_counts = {}
         if PersistentSubsectionGrade and course_ids:
-            user_id = request.query_params.get("user_id") or request.user.id
-            agg = (
-                PersistentSubsectionGrade.objects
-                .filter(user_id=user_id, course_id__in=course_ids)
-                .filter(possible_graded__gt=0)           # graded-only subsections
-                .values("course_id")
-                .annotate(count=Count("id"))
-            )
-            graded_counts = {str(row["course_id"]): int(row["count"]) for row in agg}
+            try:
+                user_id = request.query_params.get("user_id") or request.user.id
+                agg = (
+                    PersistentSubsectionGrade.objects.filter(
+                        user_id=user_id, course_id__in=course_ids
+                    )
+                    .filter(possible_graded__gt=0)
+                    .values("course_id")
+                    .annotate(count=Count("id"))
+                )
+                graded_counts = {
+                    str(row["course_id"]): int(row["count"]) for row in agg
+                }
+            except Exception as e:
+                print(f"Error fetching graded counts: {e}")
+                graded_counts = {}
 
         # Serialize
         serializer = self.get_serializer(
-            objects, many=True,
+            objects,
+            many=True,
             context={"course_titles": titles, "graded_counts": graded_counts},
         )
 
@@ -96,6 +164,5 @@ class EnrollmentSummaryView(ListAPIView):
         else:
             response = Response(serializer.data)
 
-        # Caching headers for clients/proxies (pairs with cache_page)
         response["Cache-Control"] = "public, max-age=300"
         return response
