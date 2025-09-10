@@ -1,4 +1,3 @@
-# enrollment_summary/settings/production.py
 """
 Production settings for enrollment_summary plugin.
 """
