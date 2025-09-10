@@ -1,5 +1,5 @@
 from django.apps import AppConfig
-from edx_django_utils.plugins.constants import PluginURLs, PluginSettings, ProjectType
+from edx_django_utils.plugins.constants import PluginURLs, PluginSettings
 
 
 class EnrollmentSummaryConfig(AppConfig):
@@ -13,25 +13,17 @@ class EnrollmentSummaryConfig(AppConfig):
 
     plugin_app = {
         PluginURLs.CONFIG: {
-            ProjectType.LMS: {
+            "lms.djangoapp": {
                 "namespace": "enrollment_summary",
                 "app_name": "enrollment_summary",
                 "regex": r"^api/enrollments/",
                 "relative_path": "urls",
             },
-            # Remove CMS config since this is LMS-only functionality
         },
         PluginSettings.CONFIG: {
-            ProjectType.LMS: {
+            "lms.djangoapp": {
                 "common": {"relative_path": "settings.common"},
                 "production": {"relative_path": "settings.production"},
             }
         },
     }
-
-    def ready(self):
-        """
-        Connect signal handlers when the app is ready.
-        """
-        # Add any signal connections here if needed
-        pass
